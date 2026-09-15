@@ -16,8 +16,11 @@ import {
   Eye,
   Sliders,
   Sparkles,
+  BellRing,
 } from "lucide-react";
 import { useAdminControl } from "@/context/AdminControlContext";
+import { InstantAlertModal } from "@/components/admin/InstantAlertModal";
+import type { ScreenDevice } from "@/types/admin";
 import { toast } from "sonner";
 
 interface AdminDashboardPageProps {
@@ -37,6 +40,7 @@ export default function AdminDashboardPage({ onNavigate }: AdminDashboardPagePro
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
+  const [alertTargetScreen, setAlertTargetScreen] = useState<ScreenDevice | null>(null);
 
   const onlineScreens = screens.filter((s) => s.status === "online");
   const offlineScreens = screens.filter((s) => s.status === "offline");
@@ -307,12 +311,22 @@ export default function AdminDashboardPage({ onNavigate }: AdminDashboardPagePro
                     <span className="text-[10px] text-slate-500">
                       {screen.branchManager} (אחראי)
                     </span>
-                    <button
-                      onClick={() => onNavigate?.(`/admin/screens/${screen.id}`)}
-                      className="text-[11px] text-sky-400 hover:text-sky-300 font-bold hover:underline"
-                    >
-                      הגדרות מסך &larr;
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setAlertTargetScreen(screen)}
+                        className="text-[11px] text-amber-400 hover:text-amber-300 font-bold hover:underline flex items-center gap-1"
+                        title={`שליחת התראה מיידית למסך "${screen.name}" בלבד`}
+                      >
+                        <BellRing className="w-3 h-3 text-amber-400" />
+                        <span>התראה מיידית</span>
+                      </button>
+                      <button
+                        onClick={() => onNavigate?.(`/admin/screens/${screen.id}`)}
+                        className="text-[11px] text-sky-400 hover:text-sky-300 font-bold hover:underline"
+                      >
+                        הגדרות &larr;
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -414,6 +428,13 @@ export default function AdminDashboardPage({ onNavigate }: AdminDashboardPagePro
           </div>
         </div>
       </div>
+
+      {/* Immediate Alert Modal */}
+      <InstantAlertModal
+        screen={alertTargetScreen}
+        isOpen={!!alertTargetScreen}
+        onClose={() => setAlertTargetScreen(null)}
+      />
     </div>
   );
 }

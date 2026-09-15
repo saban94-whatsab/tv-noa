@@ -526,6 +526,81 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
     setAlerts((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
+  /* ---------------- Listen to Realtime Remote Commands & Broadcasts ---------------- */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const onEmergencyBroadcast = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent).detail;
+        if (!detail || !detail.isActive) return;
+
+        // Determine if this screen is targeted
+        const currentScreenId =
+          localStorage.getItem("saban_screen_id") ||
+          new URLSearchParams(window.location.search).get("screen") ||
+          "";
+
+        const isTargeted =
+          !detail.targetScreenIds ||
+          detail.targetScreenIds.length === 0 ||
+          detail.targetScreenIds.includes("all") ||
+          (currentScreenId && detail.targetScreenIds.includes(currentScreenId)) ||
+          !currentScreenId;
+
+        if (isTargeted) {
+          const alertMsg = detail.title ? `${detail.title}: ${detail.message}` : detail.message;
+          const level: AlertLevel =
+            detail.level === "critical"
+              ? "critical"
+              : detail.level === "warning"
+                ? "warning"
+                : "info";
+          pushAlert(alertMsg, level, true);
+        }
+      } catch (err) {
+        console.error("Error handling saban-emergency-broadcast event", err);
+      }
+    };
+
+    const onRemoteCommand = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent).detail;
+        if (!detail) return;
+
+        const currentScreenId =
+          localStorage.getItem("saban_screen_id") ||
+          new URLSearchParams(window.location.search).get("screen") ||
+          "";
+
+        const isForThisScreen = !currentScreenId || currentScreenId === detail.screenId;
+
+        if (isForThisScreen) {
+          if (detail.command === "targeted_alert") {
+            const p = (detail.payload as Record<string, unknown>) || {};
+            const title = p.title ? `${p.title}: ` : "";
+            const msg = `${title}${p.message || "התראה מיידית מהמשרד"}`;
+            const level: AlertLevel =
+              p.level === "critical" ? "critical" : p.level === "warning" ? "warning" : "info";
+            pushAlert(msg, level, true);
+          } else if (detail.command === "refresh") {
+            window.location.reload();
+          }
+        }
+      } catch (err) {
+        console.error("Error handling saban-remote-command event", err);
+      }
+    };
+
+    window.addEventListener("saban-emergency-broadcast", onEmergencyBroadcast);
+    window.addEventListener("saban-remote-command", onRemoteCommand);
+
+    return () => {
+      window.removeEventListener("saban-emergency-broadcast", onEmergencyBroadcast);
+      window.removeEventListener("saban-remote-command", onRemoteCommand);
+    };
+  }, [pushAlert]);
+
   /* ---------------- Status Sync Records (Derived from overrides) ---------------- */
   const statusSyncRecords = useMemo<Record<string, StatusSyncRecord>>(() => {
     const records: Record<string, StatusSyncRecord> = {};

@@ -342,7 +342,7 @@ interface AdminControlContextType {
   updateScreen: (screenId: string, updates: Partial<ScreenDevice>) => void;
   sendRemoteCommand: (
     screenId: string,
-    command: "refresh" | "toggle_screensaver" | "set_volume" | "set_round",
+    command: "refresh" | "toggle_screensaver" | "set_volume" | "set_round" | "targeted_alert",
     payload?: unknown,
   ) => void;
   sheetsConfig: SheetsSyncConfig;
@@ -364,6 +364,16 @@ interface AdminControlContextType {
     voiceAnnounce?: boolean;
     durationMinutes?: number;
   }) => EmergencyBroadcast;
+  sendInstantAlert: (
+    screenIdOrIds: string | string[],
+    params: {
+      title: string;
+      message: string;
+      level?: "critical" | "warning" | "info" | "success";
+      voiceAnnounce?: boolean;
+      durationMinutes?: number;
+    },
+  ) => EmergencyBroadcast;
   cancelBroadcast: (broadcastId: string) => void;
   auditLogs: AuditLogEntry[];
   addAuditLog: (
@@ -746,7 +756,7 @@ export function AdminControlProvider({ children }: { children: React.ReactNode }
   const sendRemoteCommand = useCallback(
     (
       screenId: string,
-      command: "refresh" | "toggle_screensaver" | "set_volume" | "set_round",
+      command: "refresh" | "toggle_screensaver" | "set_volume" | "set_round" | "targeted_alert",
       payload?: unknown,
     ) => {
       const target = screens.find((s) => s.id === screenId);
@@ -784,7 +794,8 @@ export function AdminControlProvider({ children }: { children: React.ReactNode }
       }
 
       addAuditLog({
-        action: `פקודת שליטה מרחוק: ${command}`,
+        action:
+          command === "targeted_alert" ? "התראה מיידית למסך" : `פקודת שליטה מרחוק: ${command}`,
         category: "SCREEN",
         targetEntity: target.name,
         details: `נשלחה פקודה ${command} עם ערך: ${JSON.stringify(payload ?? "")}`,
@@ -945,6 +956,52 @@ export function AdminControlProvider({ children }: { children: React.ReactNode }
     [currentUser, addAuditLog],
   );
 
+  // Send instant alert targeted to specific screen(s)
+  const sendInstantAlert = useCallback(
+    (
+      screenIdOrIds: string | string[],
+      params: {
+        title: string;
+        message: string;
+        level?: "critical" | "warning" | "info" | "success";
+        voiceAnnounce?: boolean;
+        durationMinutes?: number;
+      },
+    ) => {
+      const idList = Array.isArray(screenIdOrIds) ? screenIdOrIds : [screenIdOrIds];
+      const targetScreens = screens.filter((s) => idList.includes(s.id));
+      const targetName =
+        targetScreens.length > 0 ? targetScreens.map((s) => s.name).join(", ") : idList.join(", ");
+      const level = params.level || "warning";
+
+      // 1. Publish broadcast specifically targeting these screens
+      const broadcast = publishBroadcast({
+        title: params.title,
+        message: params.message,
+        level,
+        targetScreenIds: idList,
+        voiceAnnounce: params.voiceAnnounce ?? true,
+        durationMinutes: params.durationMinutes ?? 5,
+      });
+
+      // 2. Dispatch remote targeted alert command for each screen
+      idList.forEach((screenId) => {
+        const target = screens.find((s) => s.id === screenId);
+        sendRemoteCommand(screenId, "targeted_alert", {
+          title: params.title,
+          message: params.message,
+          level,
+          voiceAnnounce: params.voiceAnnounce,
+          screenName: target ? target.name : targetName,
+          broadcastId: broadcast.id,
+        });
+      });
+
+      return broadcast;
+    },
+    [screens, publishBroadcast, sendRemoteCommand],
+  );
+
   // Cancel broadcast
   const cancelBroadcast = useCallback(
     (broadcastId: string) => {
@@ -1017,6 +1074,7 @@ export function AdminControlProvider({ children }: { children: React.ReactNode }
     broadcasts,
     activeBroadcast,
     publishBroadcast,
+    sendInstantAlert,
     cancelBroadcast,
     auditLogs,
     addAuditLog,

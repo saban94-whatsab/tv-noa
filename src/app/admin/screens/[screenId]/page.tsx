@@ -13,8 +13,10 @@ import {
   Trash2,
   ExternalLink,
   Laptop,
+  BellRing,
 } from "lucide-react";
 import { useAdminControl } from "@/context/AdminControlContext";
+import { InstantAlertModal } from "@/components/admin/InstantAlertModal";
 import { toast } from "sonner";
 
 interface ScreenDetailProps {
@@ -37,6 +39,7 @@ export default function ScreenDetailPage({ screenId, onNavigate }: ScreenDetailP
   const [idleMinutes, setIdleMinutes] = useState(screen?.screensaverIdleMinutes ?? 5);
   const [notes, setNotes] = useState(screen?.notes || "");
   const [forcedScreensaver, setForcedScreensaver] = useState(screen?.forcedScreensaver ?? false);
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
 
   useEffect(() => {
     if (screen) {
@@ -151,6 +154,15 @@ export default function ScreenDetailPage({ screenId, onNavigate }: ScreenDetailP
           >
             <Power className="w-3.5 h-3.5 text-amber-400" />
             <span>{forcedScreensaver ? "בטל שומר מסך" : "כפה שומר מסך"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAlertModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs font-bold border border-amber-500/40 transition-colors shadow-sm shadow-amber-500/10 active:scale-95"
+            title={`שליחת התראה מיידית קצרה למסך "${screen.name}" בלבד`}
+          >
+            <BellRing className="w-3.5 h-3.5 text-amber-400 animate-bounce" />
+            <span>התראה מיידית</span>
           </button>
         </div>
       </div>
@@ -358,6 +370,13 @@ export default function ScreenDetailPage({ screenId, onNavigate }: ScreenDetailP
           </div>
         </div>
       </div>
+
+      {/* Immediate Alert Modal */}
+      <InstantAlertModal
+        screen={screen}
+        isOpen={isAlertModalOpen}
+        onClose={() => setIsAlertModalOpen(false)}
+      />
     </div>
   );
 }
