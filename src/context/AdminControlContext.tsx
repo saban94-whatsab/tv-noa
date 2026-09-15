@@ -12,6 +12,11 @@ import type {
 } from "@/types/admin";
 import { playAlarmSound, playNewOrderSound, playStatusChime } from "@/utils/soundEffects";
 import { speakHebrew } from "@/services/voiceAlertService";
+import {
+  syncPublishBroadcast,
+  syncCancelBroadcast,
+  subscribeToRealtimeBroadcasts,
+} from "@/services/realtimeSyncService";
 
 export const PRESET_USERS: AdminUser[] = [
   {
@@ -529,6 +534,53 @@ export function AdminControlProvider({ children }: { children: React.ReactNode }
     }
   }, [scheduleRules]);
 
+  // Real-time listener: Listen for broadcasts from Firestore and BroadcastChannel across clients
+  useEffect(() => {
+    const unsub = subscribeToRealtimeBroadcasts(
+      (incomingBroadcast) => {
+        setBroadcasts((prev) => {
+          const exists = prev.some((b) => b.id === incomingBroadcast.id);
+          if (exists) {
+            return prev.map((b) => (b.id === incomingBroadcast.id ? incomingBroadcast : b));
+          }
+          // New broadcast received from another client/admin: trigger alert & add
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("saban-emergency-broadcast", {
+                detail: incomingBroadcast,
+              }),
+            );
+          }
+          if (incomingBroadcast.level === "critical") {
+            playAlarmSound();
+          } else {
+            playNewOrderSound();
+          }
+          if (incomingBroadcast.voiceAnnounce) {
+            speakHebrew(
+              `הודעת כריזה מבצעית מחסן ח. סבן: ${incomingBroadcast.title}. ${incomingBroadcast.message}`,
+            );
+          }
+          return [incomingBroadcast, ...prev];
+        });
+      },
+      (cancelledId) => {
+        setBroadcasts((prev) =>
+          prev.map((b) => (b.id === cancelledId ? { ...b, isActive: false } : b)),
+        );
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("saban-emergency-broadcast-cancel", {
+              detail: { broadcastId: cancelledId },
+            }),
+          );
+        }
+      },
+    );
+
+    return () => unsub();
+  }, []);
+
   // Periodic heartbeat tick: keep screens status fresh
   useEffect(() => {
     const interval = setInterval(() => {
@@ -874,6 +926,11 @@ export function AdminControlProvider({ children }: { children: React.ReactNode }
         );
       }
 
+      // Sync across all screens and clients via Firestore and BroadcastChannel
+      syncPublishBroadcast(newBroadcast).catch((err) => {
+        console.warn("[AdminControl] Broadcast real-time publish note:", err);
+      });
+
       addAuditLog({
         action: "שידור התראה מתפרצת דחופה",
         category: "OVERRIDE",
@@ -911,6 +968,11 @@ export function AdminControlProvider({ children }: { children: React.ReactNode }
           }),
         );
       }
+
+      // Sync cancellation across all screens and clients via Firestore and BroadcastChannel
+      syncCancelBroadcast(broadcastId).catch((err) => {
+        console.warn("[AdminControl] Broadcast cancel real-time note:", err);
+      });
     },
     [addAuditLog],
   );

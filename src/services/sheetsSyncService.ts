@@ -1,8 +1,8 @@
 import type { Order } from "@/types/dispatch";
 import { fetchOrdersFromSheet } from "@/services/sheetsService";
 
-const CACHE_TTL_MS = 12_000;
-const RETRY_DELAYS_MS = [5_000, 10_000, 30_000];
+const CACHE_TTL_MS = 2_000;
+const RETRY_DELAYS_MS = [2_000, 5_000, 15_000];
 
 type Entry = { promise: Promise<Order[]>; startedAt: number };
 const inFlight = new Map<string, Entry>();
@@ -24,9 +24,12 @@ const wait = (ms: number, signal?: AbortSignal) =>
 export async function fetchOrdersWithResilience(
   url: string,
   signal?: AbortSignal,
+  bypassCache = false,
 ): Promise<Order[]> {
-  const cached = cache.get(url);
-  if (cached && Date.now() - cached.storedAt < CACHE_TTL_MS) return cached.orders;
+  if (!bypassCache) {
+    const cached = cache.get(url);
+    if (cached && Date.now() - cached.storedAt < CACHE_TTL_MS) return cached.orders;
+  }
 
   const existing = inFlight.get(url);
   if (existing) return existing.promise;

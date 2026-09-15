@@ -36,37 +36,69 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
+  console.error("[RootErrorComponent caught]:", error);
   const router = useRouter();
+
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
+  const handleHardRefresh = () => {
+    try {
+      localStorage.removeItem("order_status_overrides");
+      localStorage.removeItem("saban_view_mode");
+    } catch {
+      /* ignore */
+    }
+    window.location.href = "/";
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
+    <div
+      dir="rtl"
+      className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-slate-100"
+    >
+      <div className="max-w-md w-full rounded-2xl border border-slate-800 bg-slate-900/90 p-6 text-center shadow-2xl backdrop-blur-md">
+        <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
+          <svg className="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+        </div>
+        <h1 className="text-xl font-black tracking-tight text-white">
+          לוח ההפצה מתאושש ומסנכרן מחדש
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
+        <p className="mt-2 text-sm text-slate-400">
+          אירעה אי-תאימות זמנית בטעינת הנתונים. המערכת מוכנה לסנכרון מיידי.
         </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
+
+        {error?.message && (
+          <div className="my-4 rounded-lg bg-slate-950/80 p-3 text-xs text-rose-300 text-left font-mono break-all max-h-24 overflow-y-auto">
+            {error.message}
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-col sm:flex-row justify-center gap-2.5">
           <button
             onClick={() => {
               router.invalidate();
               reset();
+              window.location.reload();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-md transition-colors hover:bg-primary/90 cursor-pointer"
           >
-            Try again
+            רענן וסנכרן כעת
           </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          <button
+            onClick={handleHardRefresh}
+            className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700 cursor-pointer"
           >
-            Go home
-          </a>
+            איפוס מטמון וטעינה נקייה
+          </button>
         </div>
       </div>
     </div>
@@ -77,7 +109,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "ח. סבן · לוח סידור והפצה חי" },
       {
         name: "description",

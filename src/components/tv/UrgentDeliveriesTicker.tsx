@@ -705,12 +705,17 @@ function UrgentOrderModal({
   const approvedCount = order.items.filter((i) => i.isApproved).length;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-xs">
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl"
+        className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl touch-pan-y"
       >
         {/* Modal Header */}
         <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
@@ -865,12 +870,17 @@ function AllUrgentModal({
   onOpenStudio: (orderId: string) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-xs">
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <motion.div
         initial={{ scale: 0.96, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.96, opacity: 0 }}
-        className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl border border-border bg-card shadow-2xl"
+        className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl border border-border bg-card shadow-2xl touch-pan-y"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border p-5">

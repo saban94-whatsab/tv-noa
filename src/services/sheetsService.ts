@@ -1,4 +1,5 @@
 import type { Driver, Order, OrderItem, OrderStatus, Warehouse } from "@/types/dispatch";
+import { parseColumnHProductText } from "@/services/analyticsService";
 
 export const DRIVERS: Driver[] = [
   { id: "d1", name: "חכמת", vehicle: "משאית מרצדס מנוף" },
@@ -289,6 +290,19 @@ const HEBREW_NUMBERS: Record<string, number> = {
  */
 export function parseProductList(text: string, orderId = ""): OrderItem[] {
   if (!text || !text.trim()) return [];
+
+  // Try parsing with granular multi-pattern parser from analyticsService
+  const parsed = parseColumnHProductText(text);
+  if (parsed && parsed.length > 0) {
+    return parsed.map((it, index) => ({
+      sku: it.sku || `${orderId || "P"}-${index + 1}`,
+      name: it.name,
+      quantity: it.quantity,
+      unit: it.unit,
+      isApproved: false,
+    }));
+  }
+
   return text
     .split(/[,;\n]|\s\+\s/)
     .map((part) => part.trim())
@@ -508,7 +522,9 @@ export function toCsvUrl(url: string, sheetName = "דשבורד_הזמנות"): 
 }
 
 export async function fetchOrdersFromSheet(url: string, signal?: AbortSignal): Promise<Order[]> {
-  const target = url.includes("output=csv") || url.includes("out:csv") ? url : toCsvUrl(url);
+  const baseTarget = url.includes("output=csv") || url.includes("out:csv") ? url : toCsvUrl(url);
+  const sep = baseTarget.includes("?") ? "&" : "?";
+  const target = `${baseTarget}${sep}_t=${Date.now()}`;
   const res = await fetch(target, { cache: "no-store", signal });
   if (!res.ok) throw new Error(`שגיאת גיליון: ${res.status}`);
   const csv = await res.text();

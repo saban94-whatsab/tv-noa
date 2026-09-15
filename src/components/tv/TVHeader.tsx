@@ -28,9 +28,28 @@ function useClock() {
   return now;
 }
 
-function Metric({ label, value, tone }: { label: string; value: number; tone: string }) {
+function Metric({
+  label,
+  value,
+  tone,
+  onClick,
+  title,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+  onClick?: () => void;
+  title?: string;
+}) {
   return (
-    <div className="flex min-w-[5.5rem] flex-col items-center rounded-xl bg-card/70 px-4 py-2 ring-1 ring-border/70">
+    <div
+      onClick={onClick}
+      title={title}
+      className={cn(
+        "flex min-w-[5.5rem] flex-col items-center rounded-xl bg-card/70 px-4 py-2 ring-1 ring-border/70",
+        onClick && "cursor-pointer hover:bg-card hover:ring-border transition-all",
+      )}
+    >
       <span className={cn("text-3xl font-black leading-none tabular-nums", tone)}>{value}</span>
       <span className="mt-1 text-xs font-medium text-muted-foreground">{label}</span>
     </div>
@@ -97,7 +116,16 @@ export function TVHeader({
         )}
         <Metric label="בהעמסה" value={counts["בהעמסה"]} tone="text-accent" />
         <Metric label="בדרך" value={counts["יצא לדרך"]} tone="text-primary" />
-        <Metric label="סופק" value={counts["סופק"]} tone="text-emerald-600" />
+        <Metric
+          label="סופק"
+          value={counts["סופק"]}
+          tone="text-emerald-600"
+          title="צפה בהזמנות שסופקו מתאריך היום"
+          onClick={() => {
+            const el = document.getElementById("delivered-orders-section");
+            el?.scrollIntoView({ behavior: "smooth" });
+          }}
+        />
         <Metric label="סה״כ" value={published.length} tone="text-foreground" />
       </div>
 
@@ -202,6 +230,15 @@ export function TVHeader({
           <span className="size-2 rounded-full bg-sky-400 animate-pulse" />
           <span>בקרה מרכזית</span>
         </a>
+
+        {/* Live Realtime Link Indicator */}
+        <div
+          className="hidden xl:flex items-center gap-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1.5 text-xs font-bold text-emerald-400"
+          title="סנכרון בזמן אמת פעיל (Firestore onSnapshot & Broadcast Channel)"
+        >
+          <Radio className="size-3.5 animate-pulse text-emerald-400" />
+          <span>חי בזמן אמת</span>
+        </div>
 
         <div
           style={{ paddingLeft: "2px", paddingRight: "-7px" }}

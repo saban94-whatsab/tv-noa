@@ -140,7 +140,7 @@ export default function AdminLayout({
 
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans select-none"
+      className="flex min-h-screen w-full max-w-full overflow-x-hidden md:h-screen md:overflow-hidden bg-slate-950 text-slate-100 font-sans"
       dir="rtl"
     >
       {/* Fixed RTL Sidebar */}
@@ -370,6 +370,12 @@ export default function AdminLayout({
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Realtime sync badge */}
+            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-bold text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>סנכרון מיידי חי (Firestore)</span>
+            </div>
+
             {/* Quick live TV preview button */}
             <a
               href="/"

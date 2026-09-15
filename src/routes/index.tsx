@@ -12,6 +12,7 @@ import { StudioDrawer } from "@/components/studio/StudioDrawer";
 import { DispatchScreensaver } from "@/components/screensaver/DispatchScreensaver";
 import { PickerView } from "@/components/mobile/PickerView";
 import { TrafficLiveDashboard } from "@/components/traffic/TrafficLiveDashboard";
+import { DeliveredOrdersList } from "@/components/tv/DeliveredOrdersList";
 import type { Order } from "@/types/dispatch";
 
 /** Detects mobile or touch-only devices (no fine pointer / narrow viewport). */
@@ -108,9 +109,18 @@ function LiveBoard() {
     }
   };
 
+  // ── Separation of active orders vs delivered orders (סופק) ───────
+  const deliveredOrders = useMemo(() => {
+    return published.filter((o) => o.status === "סופק");
+  }, [published]);
+
+  const activeOrders = useMemo(() => {
+    return published.filter((o) => o.status !== "סופק");
+  }, [published]);
+
   const rounds = useMemo(() => {
     const map = new Map<number, Order[]>();
-    [...published]
+    [...activeOrders]
       .sort((a, b) => a.targetTime.localeCompare(b.targetTime))
       .forEach((o) => {
         const arr = map.get(o.round) ?? [];
@@ -118,27 +128,50 @@ function LiveBoard() {
         map.set(o.round, arr);
       });
     return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
-  }, [published]);
+  }, [activeOrders]);
 
   if (viewMode === "picker") {
     // ── Hermetic mobile boundary ──────────────────────────────────
     // Mobile/picker renders ONLY PickerView — no screensaver, no studio
-    // drawer, no flash overlays, no traffic modals, no TV boards.
+    // drawer, no flash overlays, no TV boards.
     return (
-      <div dir="rtl" className="min-h-screen bg-slate-950">
-        <PickerView onSwitchToTv={() => handleSetViewMode("tv")} />
+      <div dir="rtl" className="min-h-screen w-full max-w-full bg-slate-950">
+        <PickerView
+          onSwitchToTv={() => handleSetViewMode("tv")}
+          onOpenTraffic={() => setIsTrafficOpen(true)}
+        />
+        <AnimatePresence>
+          {isTrafficOpen && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setIsTrafficOpen(false);
+              }}
+            >
+              <div className="w-full max-w-5xl max-h-[92vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col">
+                <TrafficLiveDashboard onClose={() => setIsTrafficOpen(false)} isModal />
+              </div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
 
   return (
-    <div dir="rtl" className="flex min-h-screen w-screen flex-col gap-2.5 bg-background p-3">
+    <div
+      dir="rtl"
+      className="flex min-h-screen w-full max-w-full flex-col gap-2.5 bg-background p-3"
+    >
       <UrgentDeliveriesTicker />
       <TVHeader
         onSwitchToPicker={() => handleSetViewMode("picker")}
         onOpenTraffic={() => setIsTrafficOpen(true)}
       />
       <NoaAIBanner />
+
+      {/* רשימת הזמנות שסופקו מתאריך היום (הסתרת הזמנות סופק מאחורי כפתור ורשימה בשורה) */}
+      <DeliveredOrdersList orders={deliveredOrders} />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[1.15fr_1fr]">
         {focusOrder && (
@@ -156,8 +189,13 @@ function LiveBoard() {
       {/* Traffic Live Modal for TV */}
       <AnimatePresence>
         {isTrafficOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md">
-            <div className="w-full max-w-6xl max-h-[95vh] overflow-hidden shadow-2xl">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setIsTrafficOpen(false);
+            }}
+          >
+            <div className="w-full max-w-6xl max-h-[95vh] overflow-hidden shadow-2xl flex flex-col">
               <TrafficLiveDashboard onClose={() => setIsTrafficOpen(false)} isModal />
             </div>
           </div>

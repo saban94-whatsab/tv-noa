@@ -260,7 +260,7 @@ export function PickerView({ onSwitchToTv, onOpenTraffic }: PickerViewProps) {
   }, [published, selectedProfile]);
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-950 text-slate-100 font-sans pb-24 selection:bg-amber-500 selection:text-slate-950">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden touch-pan-y bg-slate-950 text-slate-100 font-sans pb-24 selection:bg-amber-500 selection:text-slate-950">
       {/* Top Mobile Bar */}
       <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3 shadow-md">
         <div className="flex items-center justify-between gap-2 max-w-2xl mx-auto">
@@ -593,8 +593,13 @@ export function PickerView({ onSwitchToTv, onOpenTraffic }: PickerViewProps) {
 
       {/* Share / Direct Links Modal */}
       {showShareModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto p-5 space-y-4 shadow-2xl relative">
+        <div
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowShareModal(false);
+          }}
+        >
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto overscroll-contain p-5 space-y-4 shadow-2xl relative touch-pan-y">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <div className="size-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
@@ -606,8 +611,10 @@ export function PickerView({ onSwitchToTv, onOpenTraffic }: PickerViewProps) {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowShareModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                aria-label="סגור חלון"
+                className="min-h-[44px] min-w-[44px] p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors flex items-center justify-center"
               >
                 <X className="size-5" />
               </button>

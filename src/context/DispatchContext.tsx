@@ -24,6 +24,8 @@ import type {
   ScreensaverSettings,
   ScheduledBroadcast,
   AITrainingSettings,
+  InventoryAggregationSummary,
+  DailyInventoryInsight,
 } from "@/types/screensaver";
 import {
   DEFAULT_SHEET_URL,
@@ -34,6 +36,10 @@ import {
   testSheetWebhookConnection,
 } from "@/services/sheetsService";
 import { fetchOrdersWithResilience } from "@/services/sheetsSyncService";
+import {
+  aggregateTodayDispensedInventory,
+  getDailyInventoryInsights,
+} from "@/services/analyticsService";
 import {
   playNewOrderSound,
   playSuccessSound,
@@ -50,6 +56,10 @@ import {
   subscribeVoiceStatus,
   testVoiceAnnouncement,
 } from "@/services/voiceAlertService";
+import {
+  syncPublishUrgentOrder,
+  subscribeToRealtimeUrgentOrders,
+} from "@/services/realtimeSyncService";
 
 const DEFAULT_SCREENSAVER_SETTINGS: ScreensaverSettings = {
   isEnabled: true,
@@ -253,6 +263,11 @@ interface DispatchContextValue extends DispatchState {
   recentlyChangedOrderIds: Record<string, number>;
   recordOrderChange: (orderId: string) => void;
 
+  /* live automated inventory & safety stock */
+  inventorySummary: InventoryAggregationSummary;
+  inventoryInsights: DailyInventoryInsight[];
+  isAutoInventoryActive: boolean;
+
   /* picker workflow */
   startPicking: (orderId: string, pickerName?: string) => void;
   finishPicking: (orderId: string) => void;
@@ -301,11 +316,12 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
   const webhookUrlRef = useRef(webhookUrl);
   webhookUrlRef.current = webhookUrl;
 
-  const [pollingSeconds, setPollingSecondsState] = useState(45);
+  const [pollingSeconds, setPollingSecondsState] = useState(15);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<DispatchState["syncStatus"]>("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const syncNowRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   /* ---------------- Browser Speech Synthesis Voice Alerts ---------------- */
   const [voiceAnnounceEnabled, setVoiceAnnounceEnabledState] = useState(() =>
@@ -578,6 +594,10 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
             message: `סטטוס הזמנה #${orderId} סונכרן ישירות לעמודת סטטוס בגיליון Google Sheets`,
             timestamp: Date.now(),
           });
+          // Seamless background verification: pull fresh sheet update automatically without human intervention
+          setTimeout(() => {
+            void syncNowRef.current();
+          }, 2500);
         }
       })
       .catch((err) => {
@@ -622,15 +642,25 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
       // Flash overlay & event dispatch on urgency or status change
       const isUrgent = newStatus === "בהעמסה" || newStatus === "מוכן להעמסה";
       if (isUrgent) {
+        const foundOrder = published.find((o) => o.orderId === orderId);
         setLatestOrderEvent({
           type: "status_urgent",
           orderId,
-          order: published.find((o) => o.orderId === orderId),
+          order: foundOrder,
           message: `הזמנה #${orderId} מוכנה/הועברה להעמסה כעת!`,
           timestamp: now,
         });
         pushAlert(`הזמנה #${orderId} הועברה לסטטוס: ${newStatus}`, "warning", true);
         playSuccessSound();
+
+        if (foundOrder) {
+          syncPublishUrgentOrder(
+            { ...foundOrder, status: newStatus },
+            `הזמנה #${orderId} מוכנה/הועברה להעמסה כעת!`,
+          ).catch((err) => {
+            console.warn("[Dispatch] Realtime order status publish note:", err);
+          });
+        }
       } else if (newStatus === "סופק") {
         setLatestOrderEvent({
           type: "status_changed",
@@ -933,6 +963,11 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
           pushAlert(msg, "warning", true);
           playNewOrderSound();
 
+          // Sync new urgent order event across all screens and clients via Firestore and BroadcastChannel
+          syncPublishUrgentOrder(order, msg).catch((err) => {
+            console.warn("[Dispatch] Realtime order publish note:", err);
+          });
+
           // If brand new order is urgent/high priority, announce it in Hebrew
           if (isHighPriorityUrgentOrder(order)) {
             speakHebrew(
@@ -1050,6 +1085,7 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [sourceMode, sheetUrl, pushAlert, announceChanges]);
+  syncNowRef.current = syncNow;
 
   /* Manual write-back functions */
   const syncStatusToSheet = useCallback(
@@ -1132,7 +1168,7 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setPollingSeconds = useCallback((seconds: number) => {
-    const safe = Math.min(600, Math.max(30, seconds || 45));
+    const safe = Math.min(600, Math.max(10, seconds || 15));
     setPollingSecondsState(safe);
     try {
       const raw = localStorage.getItem(SOURCE_CONFIG_STORAGE_KEY);
@@ -1166,37 +1202,87 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Adaptive polling: one request at a time, with an immediate refresh when visible.
+  // Adaptive hands-free polling: continuous background sync, with immediate refresh on visibility, focus, and network online.
   useEffect(() => {
     if (sourceMode !== "sheets" || !sheetUrl) return;
     failures.current = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let disposed = false;
+    let lastSyncTimestamp = Date.now();
+
     const schedule = (delay: number) => {
       if (!disposed) timer = setTimeout(run, delay);
     };
+
     const run = async () => {
+      lastSyncTimestamp = Date.now();
       await syncNow();
       if (disposed) return;
       const retryDelay =
-        failures.current > 0 ? Math.min(30, 5 * 2 ** (failures.current - 1)) : pollingSeconds;
+        failures.current > 0 ? Math.min(20, 3 * 2 ** (failures.current - 1)) : pollingSeconds;
       schedule(retryDelay * 1000);
     };
+
     void run();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
+
+    const onWakeOrActive = () => {
+      if (document.visibilityState === "visible" || Date.now() - lastSyncTimestamp >= 8000) {
         if (timer) clearTimeout(timer);
         void run();
       }
     };
-    document.addEventListener("visibilitychange", onVisible);
+
+    const onOnline = () => {
+      if (timer) clearTimeout(timer);
+      void run();
+    };
+
+    document.addEventListener("visibilitychange", onWakeOrActive);
+    window.addEventListener("focus", onWakeOrActive);
+    window.addEventListener("online", onOnline);
+
     return () => {
       disposed = true;
       if (timer) clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("visibilitychange", onWakeOrActive);
+      window.removeEventListener("focus", onWakeOrActive);
+      window.removeEventListener("online", onOnline);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceMode, sheetUrl, pollingSeconds]);
+
+  /* ---------------- Live Automated Inventory Calculation ---------------- */
+  // Continuously and hands-free recalculates today's dispensed goods, current yard stock,
+  // safety thresholds, and reorder advice as sheet data or statuses update.
+  const inventorySummary = useMemo(() => aggregateTodayDispensedInventory(published), [published]);
+
+  const inventoryInsights = useMemo(() => getDailyInventoryInsights(published), [published]);
+
+  // Autonomous safety stock monitoring without human touch:
+  // Detects inventory drops below safety baseline and automatically broadcasts alerts
+  const alertedStockSkusRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!inventoryInsights || inventoryInsights.length === 0) return;
+
+    inventoryInsights.forEach((ins) => {
+      if (ins.alertLevel === "HIGH" && !alertedStockSkusRef.current.has(ins.sku)) {
+        alertedStockSkusRef.current.add(ins.sku);
+        const alertMsg = `🚨 התראת מלאי אוטומטית (חידוש רכש): ${ins.productName} ירד מתחת לסף הביטחון (נותרו ${ins.currentYardStock}/${ins.safetyStockFloor} ${ins.unit})! המלצה: ${ins.recommendedReorder}`;
+        pushAlert(alertMsg, "critical", false);
+
+        setLatestOrderEvent({
+          type: "status_urgent",
+          orderId: `stock-${ins.sku}`,
+          message: alertMsg,
+          timestamp: Date.now(),
+        });
+      } else if (ins.alertLevel === "NORMAL" && alertedStockSkusRef.current.has(ins.sku)) {
+        // Stock recovered or replenished
+        alertedStockSkusRef.current.delete(ins.sku);
+      }
+    });
+  }, [inventoryInsights, pushAlert]);
 
   /* ---------------- Noa AI Automatic Urgency Insights ---------------- */
   useEffect(() => {
@@ -1394,6 +1480,29 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Real-time listener: Listen for urgent orders pushed from any other client/device via Firestore/BroadcastChannel
+  useEffect(() => {
+    const unsub = subscribeToRealtimeUrgentOrders((notification) => {
+      // Avoid duplicate alert if already notified recently
+      setLatestOrderEvent({
+        type: "status_urgent",
+        orderId: notification.orderId,
+        message: notification.message,
+        timestamp: notification.timestamp,
+      });
+
+      pushAlert(notification.message, "warning", true);
+      playNewOrderSound();
+
+      // Voice announcement if enabled
+      speakHebrew(
+        `התראה מבצעית: הזמנה דחופה ${notification.orderId} עבור ${notification.customerName}. ${notification.status}`,
+      );
+    });
+
+    return () => unsub();
+  }, [pushAlert]);
+
   useEffect(() => {
     if (!screensaverSettings.isEnabled) return;
 
@@ -1513,6 +1622,9 @@ export function DispatchProvider({ children }: { children: ReactNode }) {
     currentTime,
     recentlyChangedOrderIds,
     recordOrderChange,
+    inventorySummary,
+    inventoryInsights,
+    isAutoInventoryActive: true,
     /* picker workflow */
     startPicking,
     finishPicking,

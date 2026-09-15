@@ -89,10 +89,10 @@ export function BroadcastControl() {
               תדירות משיכה (שניות)
               <input
                 type="number"
-                min={30}
+                min={10}
                 max={600}
                 value={pollingSeconds}
-                onChange={(e) => setPollingSeconds(Number(e.target.value) || 45)}
+                onChange={(e) => setPollingSeconds(Number(e.target.value) || 15)}
                 className="w-20 rounded-lg border border-input bg-background px-2 py-1 text-center text-sm font-black tabular-nums text-foreground outline-none focus:border-primary"
               />
             </label>

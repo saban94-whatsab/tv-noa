@@ -162,6 +162,13 @@
     touch-action: pan-y !important;
   }
 
+  /* Prevent mobile scroll freezing and bounce locks */
+  #root,
+  body > div {
+    min-height: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
