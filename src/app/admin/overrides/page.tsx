@@ -221,7 +221,7 @@ export default function OverridesPage() {
             </label>
             <input
               type="text"
-              placeholder="למשל: ⚠️ משאית מנוף נכנסת לרציף 4"
+              placeholder="למשל: ⚠️ משאית חכמת מנוף נכנסת לחצר "
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
@@ -240,7 +240,7 @@ export default function OverridesPage() {
             >
               <option value="critical">🚨 קריטי (אדום - משאית מנוף, סכנה)</option>
               <option value="warning">⚠️ אזהרה תפעולית (כתום - גשם, בדיקה)</option>
-              <option value="info">📢 עדכון לוגיסטי (כחול - הקדמת סבב)</option>
+              <option value="info">📢 עדכון סידור (כחול - הקדמת סבב)</option>
               <option value="success">✅ הודעה חיובית (ירוק - סיום העמסה)</option>
             </select>
           </div>
