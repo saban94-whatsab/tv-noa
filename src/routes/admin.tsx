@@ -117,6 +117,12 @@ function AdminRouteComponent() {
         </DispatchProvider>
       );
     }
+    if (currentPath === "/lobby-admin") {
+      if (typeof window !== "undefined") {
+        window.location.href = "/lobby-admin";
+      }
+      return null;
+    }
     if (currentPath === "/admin/audit") {
       return <AuditPage />;
     }

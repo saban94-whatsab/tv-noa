@@ -11,6 +11,7 @@ import {
   Settings2,
   Smartphone,
   Truck,
+  Tv,
   Volume2,
   VolumeX,
 } from "lucide-react";
@@ -220,6 +221,16 @@ export function TVHeader({
             <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
           </button>
         )}
+
+        {/* Lobby Signage fast link */}
+        <a
+          href="/lobby"
+          className="hidden md:flex items-center gap-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 px-3 py-2 text-xs font-bold text-amber-300 transition-all shadow-sm"
+          title="מסך שילוט מוצרים ומבצעים ללובי החנות (/lobby)"
+        >
+          <Tv className="size-3.5 text-amber-400" />
+          <span>מסך לובי</span>
+        </a>
 
         {/* Admin Control Plane Link */}
         <a

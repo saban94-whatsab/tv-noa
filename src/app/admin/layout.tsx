@@ -76,6 +76,13 @@ export const ADMIN_NAV_ITEMS = [
     description: "Waze Live Map ומעקב עומסי צירי השרון ומשאיות",
   },
   {
+    path: "/lobby-admin",
+    label: "שילוט לובי ומוצרים",
+    icon: Sparkles,
+    badge: "חדש",
+    description: "ניהול מפרטי מוצרים, מבצעים וסימולטור מסכי לובי",
+  },
+  {
     path: "/admin/audit",
     label: "יומן ביקורת (Audit)",
     icon: ClipboardList,
